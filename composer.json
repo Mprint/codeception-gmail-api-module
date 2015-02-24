@@ -1,0 +1,23 @@
+{
+    "name": "victorholban/codeception-gmail-api-module",
+    "description": "Test emails in your Codeception test using GMail API",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Victor Holban",
+            "email": "victor.holban@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=5.3.0",
+        "codeception/codeception": "~2.0",
+        "google/apiclient": "~1.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Codeception\\Module\\": "src"
+        }
+    }
+
+}
