@@ -1,31 +1,40 @@
 <?php
 namespace Codeception\Module;
 use Codeception\Module;
+use Codeception\Util\GMailExpectedCondition;
 use Codeception\Util\MailInterface;
+use Codeception\Util\GMailRemote;
 
 class GMailAPI extends Module implements MailInterface
 {
     protected $requiredFields = array('client_id', 'client_secret', 'refresh_token');
 
-    /** @var \Google_Client */
-    protected $client;
-
     /** @var \Google_Service_Gmail */
     protected $service;
 
-    public function _initialize() {
-        $this->client = new \Google_Client();
-        $this->client->setClientId($this->config['client_id']);
-        $this->client->setClientSecret($this->config['client_secret']);
-        $this->client->addScope('https://mail.google.com/');
+    /** @var GMailRemote */
+    protected $remoteMail;
 
-        $this->service = new \Google_Service_Gmail($this->client);
+    public function _initialize() {
+        $this->remoteMail = GMailRemote::createByParams($this->config['client_id'], $this->config['client_secret'], $this->config['refresh_token']);
     }
 
     public function _beforeStep(\Codeception\Step $step) {
-        if($this->client->isAccessTokenExpired()) {
-            $this->_refreshToken();
-        }
+        $this->remoteMail->refreshToken();
+    }
+
+    /**
+     * @return \Google_Client
+     */
+    public function _getClient() {
+        return $this->remoteMail->getClient();
+    }
+
+    /**
+     * @return \Google_Service_Gmail
+     */
+    public function _getService() {
+        return $this->remoteMail->getService();
     }
 
     /**
@@ -84,13 +93,6 @@ class GMailAPI extends Module implements MailInterface
     public function dontSeeInLastEmailFrom($address, $unexpected) {
         $email = $this->getLastMessageFrom($address);
         $this->dontSeeInEmail($email, $unexpected);
-    }
-
-    public function waitForEmailFrom($address) {
-        $messages = $this->getEmails(array(
-            'maxResults' => 1,
-            'q' => "from:{$address}",
-        ));
     }
 
 
@@ -216,6 +218,18 @@ class GMailAPI extends Module implements MailInterface
 
 
     /**
+     * Waits for email from $address to be received or for $timeout seconds to pass.
+     *
+     * @param $address
+     * @param int $timeout
+     * @throws \Codeception\Exception\TimeOut
+     */
+    public function waitForEmailFrom($address, $timeout = 10) {
+        $this->remoteMail->wait($timeout)->until(GMailExpectedCondition::emailFrom($address));
+    }
+
+
+    /**
      * See In Email
      *
      * Look for a string in an email
@@ -225,7 +239,7 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     protected function seeInEmail($email, $expected) {
-        $this->assertContains($expected, $this->getEmailContent($email), "Email Contains");
+        $this->assertContains($expected, $this->remoteMail->getEmailContent($email), "Email Contains");
     }
 
     /**
@@ -238,7 +252,7 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     protected function dontSeeInEmail($email, $unexpected) {
-        $this->assertNotContains($unexpected, $this->getEmailContent($email), "Email Does Not Contain");
+        $this->assertNotContains($unexpected, $this->remoteMail->getEmailContent($email), "Email Does Not Contain");
     }
 
     /**
@@ -252,7 +266,7 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     protected function seeInEmailSubject($email, $expected) {
-        $this->assertContains($expected, $this->getEmailHeader($email, 'Subject'), "Email Subject Contains");
+        $this->assertContains($expected, $this->remoteMail->getEmailHeader($email, 'Subject'), "Email Subject Contains");
     }
 
     /**
@@ -265,7 +279,7 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     protected function dontSeeInEmailSubject($email, $unexpected) {
-        $this->assertNotContains($unexpected, $this->getEmailHeader($email, 'Subject'), "Email Subject Does Not Contain");
+        $this->assertNotContains($unexpected, $this->remoteMail->getEmailHeader($email, 'Subject'), "Email Subject Does Not Contain");
     }
 
     /**
@@ -279,7 +293,7 @@ class GMailAPI extends Module implements MailInterface
      **/
     protected function grabMatchesFromEmail($email, $regex)
     {
-        preg_match($regex, $this->getEmailContent($email), $matches);
+        preg_match($regex, $this->remoteMail->getEmailContent($email), $matches);
         $this->assertNotEmpty($matches, "No matches found for $regex");
         return $matches;
     }
@@ -298,7 +312,7 @@ class GMailAPI extends Module implements MailInterface
      * @return \Google_Service_Gmail_Message
      **/
     protected function getLastMessageFrom($address) {
-        $messages = $this->getEmails(array(
+        $messages = $this->remoteMail->getEmails(array(
             'maxResults' => 1,
             'q' => "from:{$address}",
         ));
@@ -309,7 +323,7 @@ class GMailAPI extends Module implements MailInterface
         /** @var /Google_Service_Gmail_Message $last */
         $last = array_shift($messages);
 
-        return $this->getEmailById($last->id);
+        return $this->remoteMail->getEmailById($last->id);
     }
 
     /**
@@ -320,7 +334,7 @@ class GMailAPI extends Module implements MailInterface
      * @return \Google_Service_Gmail_Message
      **/
     protected function getLastMessage() {
-        $messages = $this->getEmails(array(
+        $messages = $this->remoteMail->getEmails(array(
             'maxResults' => 1,
         ));
 
@@ -331,97 +345,6 @@ class GMailAPI extends Module implements MailInterface
         /** @var /Google_Service_Gmail_Message $last */
         $last = array_shift($messages);
 
-        return $this->getEmailById($last->id);
-    }
-
-    /**
-     * Messages
-     *
-     * Get an array of all the message objects
-     *
-     * @param $params array
-     * @return array
-     **/
-    protected function getEmails($params = array()) {
-        $defaultParam = array('maxResults' => 100);
-        $params = array_merge($defaultParam, $params);
-        /** @var /Google_Service_Gmail_ListMessagesResponse $list */
-        $list = $this->service->users_messages->listUsersMessages('me', $params);
-        return $list->getMessages();
-    }
-
-    /**
-     * Email from ID
-     *
-     * Given a GMail id, returns the email's object
-     *
-     * @param $id string
-     * @return \Google_Service_Gmail_Message
-     **/
-    protected function getEmailById($id) {
-        return $this->service->users_messages->get('me', $id, array('format' => 'full'));
-    }
-
-    /**
-     * @param $email /Google_Service_Gmail_Message
-     * @param $headerName string
-     * @return string
-     */
-    protected function getEmailHeader($email, $headerName) {
-        return $this->getHeaderValue($email->getPayload()->getHeaders(), $headerName);
-    }
-
-    /**
-     * @param $headers array
-     * @param $headerName string
-     * @return string
-     */
-    protected function getHeaderValue($headers, $headerName) {
-        foreach ($headers as $header) {
-            if (!isset($header['name']) || !isset($header['value'])) continue;
-            if ($header['name'] == $headerName) return $header['value'];
-        }
-        return '';
-    }
-
-    /**
-     * @param $email /Google_Service_Gmail_Message
-     * @param $type string 'html' | 'plain'
-     * @return string
-     */
-    protected function getEmailContent($email, $type = 'plain') {
-        if(!in_array($type, array('html', 'plain'))) {
-            $type = 'plain';
-        }
-
-        foreach($email->getPayload()->getParts() as $emailPart) {
-            if ($emailPart->mimeType != "text/{$type}") continue;
-            return $this->base64url_decode($emailPart['body']['data']);
-        }
-        return '';
-    }
-
-    /**
-     * Custom base64 encode function required by GMail API
-     *
-     * @param $data
-     * @return string
-     */
-    protected function base64url_encode($data) {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
-    }
-
-    /**
-     * Custom base64 decode function required by GMail API
-     *
-     * @param $data
-     * @return string
-     */
-    protected function base64url_decode($data) {
-        return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
-    }
-
-    public function _refreshToken() {
-        $this->client->refreshToken($this->config['refresh_token']);
+        return $this->remoteMail->getEmailById($last->id);
     }
 }
