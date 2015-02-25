@@ -24,6 +24,10 @@ class GMailAPI extends Module
         $this->_refreshToken();
     }
 
+    public function _beforeStep(\Codeception\Step $step) {
+        //TODO:: Check is the token need refreshing
+    }
+
     /**
      * See In Last Email
      *
@@ -34,7 +38,7 @@ class GMailAPI extends Module
      **/
     public function seeInLastEmail($expected)
     {
-        $email = $this->lastMessage();
+        $email = $this->getLastMessage();
         $this->seeInEmail($email, $expected);
     }
 
@@ -49,7 +53,39 @@ class GMailAPI extends Module
      **/
     public function dontSeeInLastEmail($unexpected)
     {
-        $email = $this->lastMessage();
+        $email = $this->getLastMessage();
+        $this->dontSeeInEmail($email, $unexpected);
+    }
+
+    /**
+     * See In Last Email From
+     *
+     * Look for a string in the most recent email sent to $address
+     *
+     * @param $address string
+     * @param $expected string
+     * @return void
+     **/
+    public function seeInLastEmailFrom($address, $expected)
+    {
+        $email = $this->getLastMessageFrom($address);
+        $this->seeInEmail($email, $expected);
+
+    }
+
+
+    /**
+     * Don't See In Last Email From
+     *
+     * Look for the absence of a string in the most recent email sent to $address
+     *
+     * @param $address string
+     * @param $unexpected string
+     * @return void
+     **/
+    public function dontSeeInLastEmailFrom($address, $unexpected)
+    {
+        $email = $this->getLastMessageFrom($address);
         $this->dontSeeInEmail($email, $unexpected);
     }
 
@@ -64,7 +100,7 @@ class GMailAPI extends Module
      **/
     public function seeInLastEmailSubject($expected)
     {
-        $email = $this->lastMessage();
+        $email = $this->getLastMessage();
         $this->seeInEmailSubject($email, $expected);
     }
 
@@ -79,57 +115,41 @@ class GMailAPI extends Module
      **/
     public function dontSeeInLastEmailSubject($expected)
     {
-        $email = $this->lastMessage();
+        $email = $this->getLastMessage();
         $this->dontSeeInEmailSubject($email, $expected);
     }
 
 
     /**
-     * Last Message
+     * See In Last Email Subject From
      *
-     * Get the most recent email
+     * Look for a string in the most recent email subject sent to $address
      *
-     * @return \Google_Service_Gmail_Message
+     * @param $address string
+     * @param $expected string
+     * @return void
      **/
-    protected function lastMessage() {
-        $messages = $this->messages(array('maxResults' => 1));
-        if (empty($messages)) {
-            $this->fail("No messages received");
-        }
+    public function seeInLastEmailSubjectFrom($address, $expected)
+    {
+        $email = $this->getLastMessageFrom($address);
+        $this->seeInEmailSubject($email, $expected);
 
-        /** @var /Google_Service_Gmail_Message $last */
-        $last = array_shift($messages);
-
-        return $this->emailFromId($last->id);
     }
-
     /**
-     * Messages
+     * Don't See In Last Email Subject From
      *
-     * Get an array of all the message objects
+     * Look for the absence of a string in the most recent email subject sent to $address
      *
-     * @param $params array
-     * @return array
+     * @param $address string
+     * @param $expected string
+     * @return void
      **/
-    protected function messages($params = array()) {
-        $defaultParam = array('maxResults' => 100);
-        $params = array_merge($defaultParam, $params);
-        /** @var /Google_Service_Gmail_ListMessagesResponse $list */
-        $list = $this->service->users_messages->listUsersMessages('me', $params);
-        return $list->getMessages();
+    public function dontSeeInLastEmailSubjectFrom($address, $unexpected)
+    {
+        $email = $this->getLastMessageFrom($address);
+        $this->dontSeeInEmailSubject($email, $unexpected);
     }
 
-    /**
-     * Email from ID
-     *
-     * Given a GMail id, returns the email's object
-     *
-     * @param $id string
-     * @return \Google_Service_Gmail_Message
-     **/
-    protected function emailFromId($id) {
-        return $this->service->users_messages->get('me', $id, array('format' => 'full'));
-    }
 
     /**
      * See In Email
@@ -191,6 +211,80 @@ class GMailAPI extends Module
      ********************/
 
     /**
+     * Last Message From
+     *
+     * Get the most recent email sent to $address
+     *
+     * @param $address string
+     * @return \Google_Service_Gmail_Message
+     **/
+    protected function getLastMessageFrom($address)
+    {
+        $messages = $this->getEmails(array(
+            'maxResults' => 1,
+            'q' => "from:{$address}",
+        ));
+        if (empty($messages)) {
+            $this->fail("No messages sent to {$address}");
+        }
+
+        /** @var /Google_Service_Gmail_Message $last */
+        $last = array_shift($messages);
+
+        return $this->getEmailById($last->id);
+    }
+
+    /**
+     * Last Message
+     *
+     * Get the most recent email
+     *
+     * @return \Google_Service_Gmail_Message
+     **/
+    protected function getLastMessage() {
+        $messages = $this->getEmails(array(
+            'maxResults' => 1,
+        ));
+
+        if (empty($messages)) {
+            $this->fail("No messages received");
+        }
+
+        /** @var /Google_Service_Gmail_Message $last */
+        $last = array_shift($messages);
+
+        return $this->getEmailById($last->id);
+    }
+
+    /**
+     * Messages
+     *
+     * Get an array of all the message objects
+     *
+     * @param $params array
+     * @return array
+     **/
+    protected function getEmails($params = array()) {
+        $defaultParam = array('maxResults' => 100);
+        $params = array_merge($defaultParam, $params);
+        /** @var /Google_Service_Gmail_ListMessagesResponse $list */
+        $list = $this->service->users_messages->listUsersMessages('me', $params);
+        return $list->getMessages();
+    }
+
+    /**
+     * Email from ID
+     *
+     * Given a GMail id, returns the email's object
+     *
+     * @param $id string
+     * @return \Google_Service_Gmail_Message
+     **/
+    protected function getEmailById($id) {
+        return $this->service->users_messages->get('me', $id, array('format' => 'full'));
+    }
+
+    /**
      * @param $email /Google_Service_Gmail_Message
      * @param $headerName string
      * @return string
@@ -223,7 +317,7 @@ class GMailAPI extends Module
         }
 
         foreach($email->getPayload()->getParts() as $emailPart) {
-            if ($emailPart->mimeType != 'text/'.$type) continue;
+            if ($emailPart->mimeType != "text/{$type}") continue;
             return $this->base64url_decode($emailPart['body']['data']);
         }
         return '';
