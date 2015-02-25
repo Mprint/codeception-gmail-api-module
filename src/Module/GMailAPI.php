@@ -1,7 +1,9 @@
 <?php
 namespace Codeception\Module;
 use Codeception\Module;
-class GMailAPI extends Module
+use Codeception\Util\MailInterface;
+
+class GMailAPI extends Module implements MailInterface
 {
     protected $requiredFields = array('client_id', 'client_secret', 'refresh_token');
 
@@ -34,8 +36,7 @@ class GMailAPI extends Module
      * @param $expected string
      * @return void
      **/
-    public function seeInLastEmail($expected)
-    {
+    public function seeInLastEmail($expected) {
         $email = $this->getLastMessage();
         $this->seeInEmail($email, $expected);
     }
@@ -49,8 +50,7 @@ class GMailAPI extends Module
      * @param $unexpected string
      * @return void
      **/
-    public function dontSeeInLastEmail($unexpected)
-    {
+    public function dontSeeInLastEmail($unexpected) {
         $email = $this->getLastMessage();
         $this->dontSeeInEmail($email, $unexpected);
     }
@@ -65,8 +65,7 @@ class GMailAPI extends Module
      * @param $expected string
      * @return void
      **/
-    public function seeInLastEmailFrom($address, $expected)
-    {
+    public function seeInLastEmailFrom($address, $expected) {
         $email = $this->getLastMessageFrom($address);
         $this->seeInEmail($email, $expected);
 
@@ -82,10 +81,16 @@ class GMailAPI extends Module
      * @param $unexpected string
      * @return void
      **/
-    public function dontSeeInLastEmailFrom($address, $unexpected)
-    {
+    public function dontSeeInLastEmailFrom($address, $unexpected) {
         $email = $this->getLastMessageFrom($address);
         $this->dontSeeInEmail($email, $unexpected);
+    }
+
+    public function waitForEmailFrom($address) {
+        $messages = $this->getEmails(array(
+            'maxResults' => 1,
+            'q' => "from:{$address}",
+        ));
     }
 
 
@@ -97,8 +102,7 @@ class GMailAPI extends Module
      * @param $expected string
      * @return void
      **/
-    public function seeInLastEmailSubject($expected)
-    {
+    public function seeInLastEmailSubject($expected) {
         $email = $this->getLastMessage();
         $this->seeInEmailSubject($email, $expected);
     }
@@ -112,8 +116,7 @@ class GMailAPI extends Module
      * @param $expected string
      * @return void
      **/
-    public function dontSeeInLastEmailSubject($expected)
-    {
+    public function dontSeeInLastEmailSubject($expected) {
         $email = $this->getLastMessage();
         $this->dontSeeInEmailSubject($email, $expected);
     }
@@ -128,8 +131,7 @@ class GMailAPI extends Module
      * @param $expected string
      * @return void
      **/
-    public function seeInLastEmailSubjectFrom($address, $expected)
-    {
+    public function seeInLastEmailSubjectFrom($address, $expected) {
         $email = $this->getLastMessageFrom($address);
         $this->seeInEmailSubject($email, $expected);
 
@@ -145,8 +147,7 @@ class GMailAPI extends Module
      * @param $unexpected string
      * @return void
      **/
-    public function dontSeeInLastEmailSubjectFrom($address, $unexpected)
-    {
+    public function dontSeeInLastEmailSubjectFrom($address, $unexpected) {
         $email = $this->getLastMessageFrom($address);
         $this->dontSeeInEmailSubject($email, $unexpected);
     }
@@ -160,8 +161,7 @@ class GMailAPI extends Module
      * @param $regex string
      * @return string
      **/
-    public function grabFromLastEmail($regex)
-    {
+    public function grabFromLastEmail($regex) {
         $matches = $this->grabMatchesFromLastEmail($regex);
         return $matches[0];
     }
@@ -177,8 +177,7 @@ class GMailAPI extends Module
      * @param $regex string
      * @return string
      **/
-    public function grabFromLastEmailFrom($address, $regex)
-    {
+    public function grabFromLastEmailFrom($address, $regex) {
         $matches = $this->grabMatchesFromLastEmailFrom($address, $regex);
         return $matches[0];
     }
@@ -192,8 +191,7 @@ class GMailAPI extends Module
      * @param $regex string
      * @return array
      **/
-    public function grabMatchesFromLastEmail($regex)
-    {
+    public function grabMatchesFromLastEmail($regex) {
         $email = $this->getLastMessage();
         $matches = $this->grabMatchesFromEmail($email, $regex);
         return $matches;
@@ -210,8 +208,7 @@ class GMailAPI extends Module
      * @param $regex string
      * @return array
      **/
-    public function grabMatchesFromLastEmailFrom($address, $regex)
-    {
+    public function grabMatchesFromLastEmailFrom($address, $regex) {
         $email = $this->getLastMessageFrom($address);
         $matches = $this->grabMatchesFromEmail($email, $regex);
         return $matches;
@@ -227,8 +224,7 @@ class GMailAPI extends Module
      * @param $expected string
      * @return void
      **/
-    protected function seeInEmail($email, $expected)
-    {
+    protected function seeInEmail($email, $expected) {
         $this->assertContains($expected, $this->getEmailContent($email), "Email Contains");
     }
 
@@ -241,8 +237,7 @@ class GMailAPI extends Module
      * @param $unexpected string
      * @return void
      **/
-    protected function dontSeeInEmail($email, $unexpected)
-    {
+    protected function dontSeeInEmail($email, $unexpected) {
         $this->assertNotContains($unexpected, $this->getEmailContent($email), "Email Does Not Contain");
     }
 
@@ -302,8 +297,7 @@ class GMailAPI extends Module
      * @param $address string
      * @return \Google_Service_Gmail_Message
      **/
-    protected function getLastMessageFrom($address)
-    {
+    protected function getLastMessageFrom($address) {
         $messages = $this->getEmails(array(
             'maxResults' => 1,
             'q' => "from:{$address}",
