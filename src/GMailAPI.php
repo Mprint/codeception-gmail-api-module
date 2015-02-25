@@ -20,12 +20,10 @@ class GMailAPI extends Module
         $this->service = new \Google_Service_Gmail($this->client);
     }
 
-    public function _before(\Codeception\TestCase $test) {
-        $this->_refreshToken();
-    }
-
     public function _beforeStep(\Codeception\Step $step) {
-        //TODO:: Check is the token need refreshing
+        if($this->client->isAccessTokenExpired()) {
+            $this->_refreshToken();
+        }
     }
 
     /**
@@ -56,6 +54,7 @@ class GMailAPI extends Module
         $email = $this->getLastMessage();
         $this->dontSeeInEmail($email, $unexpected);
     }
+
 
     /**
      * See In Last Email From
@@ -135,19 +134,87 @@ class GMailAPI extends Module
         $this->seeInEmailSubject($email, $expected);
 
     }
+
+
     /**
      * Don't See In Last Email Subject From
      *
      * Look for the absence of a string in the most recent email subject sent to $address
      *
      * @param $address string
-     * @param $expected string
+     * @param $unexpected string
      * @return void
      **/
     public function dontSeeInLastEmailSubjectFrom($address, $unexpected)
     {
         $email = $this->getLastMessageFrom($address);
         $this->dontSeeInEmailSubject($email, $unexpected);
+    }
+
+
+    /**
+     * Grab From Last Email
+     *
+     * Look for a regex in the email source and return it
+     *
+     * @param $regex string
+     * @return string
+     **/
+    public function grabFromLastEmail($regex)
+    {
+        $matches = $this->grabMatchesFromLastEmail($regex);
+        return $matches[0];
+    }
+
+
+    /**
+     * Grab From Last Email From
+     *
+     * Look for a regex in most recent email sent to $address email body and
+     * return it
+     *
+     * @param $address string
+     * @param $regex string
+     * @return string
+     **/
+    public function grabFromLastEmailFrom($address, $regex)
+    {
+        $matches = $this->grabMatchesFromLastEmailFrom($address, $regex);
+        return $matches[0];
+    }
+
+
+    /**
+     * Grab Matches From Last Email
+     *
+     * Look for a regex in the email source and return it's matches
+     *
+     * @param $regex string
+     * @return array
+     **/
+    public function grabMatchesFromLastEmail($regex)
+    {
+        $email = $this->getLastMessage();
+        $matches = $this->grabMatchesFromEmail($email, $regex);
+        return $matches;
+    }
+
+
+    /**
+     * Grab Matches From Last Email From
+     *
+     * Look for a regex in most recent email sent to $address email source and
+     * return it's matches
+     *
+     * @param $address string
+     * @param $regex string
+     * @return array
+     **/
+    public function grabMatchesFromLastEmailFrom($address, $regex)
+    {
+        $email = $this->getLastMessageFrom($address);
+        $matches = $this->grabMatchesFromEmail($email, $regex);
+        return $matches;
     }
 
 
@@ -206,9 +273,26 @@ class GMailAPI extends Module
         $this->assertNotContains($unexpected, $this->getEmailHeader($email, 'Subject'), "Email Subject Does Not Contain");
     }
 
+    /**
+     * Grab From Email
+     *
+     * Return the matches of a regex against the raw email
+     *
+     * @param $email \Google_Service_Gmail_Message
+     * @param $regex string
+     * @return array
+     **/
+    protected function grabMatchesFromEmail($email, $regex)
+    {
+        preg_match($regex, $this->getEmailContent($email), $matches);
+        $this->assertNotEmpty($matches, "No matches found for $regex");
+        return $matches;
+    }
+
     /********************
      *  Helper function
      ********************/
+
 
     /**
      * Last Message From
