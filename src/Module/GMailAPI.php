@@ -17,6 +17,7 @@ class GMailAPI extends Module implements MailInterface
 
     public function _initialize() {
         $this->remoteMail = GMailRemote::createByParams($this->config['client_id'], $this->config['client_secret'], $this->config['refresh_token']);
+        $this->remoteMail->setBaseFilter($this->config['base_filter']);
     }
 
     public function _beforeStep(\Codeception\Step $step) {
@@ -38,15 +39,23 @@ class GMailAPI extends Module implements MailInterface
     }
 
     /**
+     * @return GMailRemote
+     */
+    public function _getRemoteMail() {
+        return $this->remoteMail;
+    }
+
+    /**
      * See In Last Email
      *
      * Look for a string in the most recent email
      *
      * @param $expected string
+     * @param $filters array
      * @return void
      **/
-    public function seeInLastEmail($expected) {
-        $email = $this->getLastMessage();
+    public function seeInLastEmail($expected, $filters = array()) {
+        $email = $this->getLastMessage($filters);
         $this->seeInEmail($email, $expected);
     }
 
@@ -57,10 +66,11 @@ class GMailAPI extends Module implements MailInterface
      * Look for the absence of a string in the most recent email
      *
      * @param $unexpected string
+     * @param $filters array
      * @return void
      **/
-    public function dontSeeInLastEmail($unexpected) {
-        $email = $this->getLastMessage();
+    public function dontSeeInLastEmail($unexpected, $filters = array()) {
+        $email = $this->getLastMessage($filters);
         $this->dontSeeInEmail($email, $unexpected);
     }
 
@@ -161,10 +171,11 @@ class GMailAPI extends Module implements MailInterface
      * Look for a regex in the email source and return it
      *
      * @param $regex string
+     * @param $filters array
      * @return string
      **/
-    public function grabFromLastEmail($regex) {
-        $matches = $this->grabMatchesFromLastEmail($regex);
+    public function grabFromLastEmail($regex, $filters = array()) {
+        $matches = $this->grabMatchesFromLastEmail($regex, $filters);
         return $matches[0];
     }
 
@@ -191,10 +202,11 @@ class GMailAPI extends Module implements MailInterface
      * Look for a regex in the email source and return it's matches
      *
      * @param $regex string
+     * @param $filters array
      * @return array
      **/
-    public function grabMatchesFromLastEmail($regex) {
-        $email = $this->getLastMessage();
+    public function grabMatchesFromLastEmail($regex, $filters = array()) {
+        $email = $this->getLastMessage($filters);
         $matches = $this->grabMatchesFromEmail($email, $regex);
         return $matches;
     }
@@ -226,6 +238,10 @@ class GMailAPI extends Module implements MailInterface
      */
     public function waitForEmailFrom($address, $timeout = 10) {
         $this->remoteMail->wait($timeout)->until(GMailExpectedCondition::emailFrom($address));
+    }
+
+    public function waitForEmail($filters = array(), $timeout = 10) {
+        $this->remoteMail->wait($timeout)->until(GMailExpectedCondition::emails($filters));
     }
 
 
@@ -312,10 +328,7 @@ class GMailAPI extends Module implements MailInterface
      * @return \Google_Service_Gmail_Message
      **/
     protected function getLastMessageFrom($address) {
-        $messages = $this->remoteMail->getEmails(array(
-            'maxResults' => 1,
-            'q' => "from:{$address}",
-        ));
+        $messages = $this->remoteMail->getEmails(array('from' => $address), 1);
         if (empty($messages)) {
             $this->fail("No messages sent to {$address}");
         }
@@ -331,12 +344,11 @@ class GMailAPI extends Module implements MailInterface
      *
      * Get the most recent email
      *
+     * @param $filters
      * @return \Google_Service_Gmail_Message
      **/
-    protected function getLastMessage() {
-        $messages = $this->remoteMail->getEmails(array(
-            'maxResults' => 1,
-        ));
+    protected function getLastMessage($filters = array()) {
+        $messages = $this->remoteMail->getEmails($filters, 1);
 
         if (empty($messages)) {
             $this->fail("No messages received");

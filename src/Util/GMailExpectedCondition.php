@@ -28,13 +28,26 @@ class GMailExpectedCondition implements ExpectedConditionInterface{
      */
     public static function emailFrom($address) {
         return new GMailExpectedCondition(
-            function ($remote) use ($address) {
-                return $remote->getEmails(array(
-                    'maxResults' => 1,
-                    'q' => "from:{$address}",
-                ));
+            function (GMailRemote $remote) use ($address) {
+                return $remote->getEmails(array('from' => $address), 1);
             }
         );
     }
+
+    /**
+     * An expectation for checking that an email from a email address is present in inbox
+     *
+     * @param $filters array
+     * @param $limit int
+     * @return GMailExpectedCondition
+     */
+    public static function emails($filters, $limit = 100) {
+        return new GMailExpectedCondition(
+            function (GMailRemote $remote) use ($filters, $limit) {
+                return $remote->getEmails($filters, $limit);
+            }
+        );
+    }
+
 
 }

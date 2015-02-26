@@ -3,6 +3,14 @@ namespace Codeception\Util;
 
 class GMailRemote {
 
+    /**
+     * Constructor for current class
+     *
+     * @param $clientId
+     * @param $clientSecret
+     * @param $refreshToken
+     * @return GMailRemote
+     */
     public static function createByParams($clientId, $clientSecret, $refreshToken) {
 
         $client = new \Google_Client();
@@ -14,18 +22,32 @@ class GMailRemote {
         return self::createByClient($client);
     }
 
+    /**
+     * Constructor for current class
+     *
+     * @param \Google_Client $client
+     * @return GMailRemote
+     */
     public static function createByClient(\Google_Client $client) {
         $service = new \Google_Service_Gmail($client);
 
         return self::createByService($service);
     }
 
+    /**
+     * Constructor for current class
+     *
+     * @param \Google_Service_Gmail $service
+     * @return GMailRemote
+     */
     public static function createByService(\Google_Service_Gmail $service) {
         return new GMailRemote($service);
     }
 
     /** @var \Google_Service_Gmail */
     public $service;
+
+    protected $baseFilter = '';
 
     public function __construct(\Google_Service_Gmail $service) {
         $this->service = $service;
@@ -45,6 +67,17 @@ class GMailRemote {
         return $this->service;
     }
 
+    public function getBaseFilter() {
+        return $this->baseFilter;
+    }
+
+    public function setBaseFilter($baseFilter) {
+        $this->baseFilter = $baseFilter;
+    }
+
+    /**
+     * @return void
+     */
     public function refreshToken() {
         if($this->service->getClient()->isAccessTokenExpired()) {
             $this->service->getClient()->refreshToken($this->service->getClient()->getRefreshToken());
@@ -52,16 +85,19 @@ class GMailRemote {
     }
 
     /**
-     * Messages
+     * List of Emails
      *
-     * Get an array of all the message objects
+     * Get an array of all the emails objects
      *
-     * @param $params array
+     * @param $filters array
+     * @param $limit int
      * @return array
      **/
-    public function getEmails($params) {
-        $defaultParam = array('maxResults' => 100);
-        $params = array_merge($defaultParam, $params);
+    public function getEmails($filters, $limit = 100) {
+        $params = array(
+            'maxResults' => $limit,
+            'q' => $this->parseFilters($filters)
+        );
         /** @var /Google_Service_Gmail_ListMessagesResponse $list */
         $list = $this->service->users_messages->listUsersMessages('me', $params);
         return $list->getMessages();
@@ -80,6 +116,8 @@ class GMailRemote {
     }
 
     /**
+     * Email Body
+     *
      * @param $email /Google_Service_Gmail_Message
      * @param $type string 'html' | 'plain'
      * @return string
@@ -97,6 +135,10 @@ class GMailRemote {
     }
 
     /**
+     * Email Header
+     *
+     * Return Email header if exist (subject | from | to ...)
+     *
      * @param $email /Google_Service_Gmail_Message
      * @param $headerName string
      * @return string
@@ -113,14 +155,30 @@ class GMailRemote {
      *     GMailExpectedCondition::emailFrom('test@gmail.com')
      *   );
      *
+     * @param $timeout_in_second int
+     * @param $interval_in_millisecond int
      * @return RemoteWait
      */
-    public function wait(
-        $timeout_in_second = 30,
-        $interval_in_millisecond = 1000) {
+    public function wait($timeout_in_second = 30, $interval_in_millisecond = 1000) {
         return new RemoteWait(
             $this, $timeout_in_second, $interval_in_millisecond
         );
+    }
+
+
+    protected function parseFilters($filters) {
+        if(is_array($filters)) {
+            $query = array();
+            foreach($filters as $filter => $value) {
+                $query []= "{$filter}:{$value}";
+            }
+
+            $filters = implode(' ', $query);
+        }
+
+        $baseFilter = $this->baseFilter;
+        return "({$filters}) $baseFilter";
+
     }
 
     /**
