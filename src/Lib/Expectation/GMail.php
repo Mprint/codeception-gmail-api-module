@@ -1,10 +1,10 @@
 <?php
 namespace Codeception\Util;
 
-class GMailExpectedCondition implements ExpectedConditionInterface{
+class GMail implements ExpectedCondition{
 
     /**
-     * A closure function to be executed by RemoteWait. It should return
+     * A closure function to be executed by \Codeception\Util\Driver\GMail. It should return
      * a truthy value, mostly boolean, array or a /Google_Service_Gmail_Message, on success.
      */
     private $apply;
@@ -24,7 +24,7 @@ class GMailExpectedCondition implements ExpectedConditionInterface{
      * An expectation for checking that an email from a email address is present in inbox
      *
      * @param $address string
-     * @return GMailExpectedCondition
+     * @return GMail
      */
     public static function emailFrom($address) {
         return self::emails(array('from' => $address), 1);
@@ -34,7 +34,7 @@ class GMailExpectedCondition implements ExpectedConditionInterface{
      * An expectation for an email where the subject contains $subject
      *
      * @param $subject string
-     * @return GMailExpectedCondition
+     * @return GMail
      */
     public static function emailWithSubject($subject) {
         return self::emails(array('subject' => $subject), 1);
@@ -47,11 +47,11 @@ class GMailExpectedCondition implements ExpectedConditionInterface{
      *
      * @param $filters array
      * @param $limit int
-     * @return GMailExpectedCondition
+     * @return GMail
      */
     public static function emails($filters, $limit = 100) {
-        return new GMailExpectedCondition(
-            function (GMailRemote $remote) use ($filters, $limit) {
+        return new GMail(
+            function (\Codeception\Util\Driver\GMail $remote) use ($filters, $limit) {
                 return $remote->getEmails($filters, $limit);
             }
         );

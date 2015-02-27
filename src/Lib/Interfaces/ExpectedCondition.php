@@ -1,7 +1,7 @@
 <?php
-namespace Codeception\Util;
+namespace Codeception\Lib\Interfaces;
 
-interface ExpectedConditionInterface {
+interface ExpectedCondition {
     /**
      * @return (function():T) a closure function to be executed
      */

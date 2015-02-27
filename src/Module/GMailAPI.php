@@ -1,24 +1,20 @@
 <?php
 namespace Codeception\Module;
 use Codeception\Exception\TimeOut;
+use Codeception\Lib\Interfaces\Mail;
 use Codeception\Module;
-use Codeception\Util\GMailExpectedCondition;
-use Codeception\Util\MailInterface;
-use Codeception\Util\GMailRemote;
+use Codeception\Util\Driver\GMail;
 
-class GMailAPI extends Module implements MailInterface
+class GMailAPI extends Module implements Mail
 {
     protected $requiredFields = array('client_id', 'client_secret', 'refresh_token');
 
-    /** @var \Google_Service_Gmail */
-    protected $service;
-
-    /** @var GMailRemote */
-    protected $remoteMail;
+    /** @var GMail */
+    protected $driver;
 
     public function _initialize() {
-        $this->remoteMail = GMailRemote::createByParams($this->config['client_id'], $this->config['client_secret'], $this->config['refresh_token']);
-        $this->remoteMail->setBaseFilter($this->config['base_filter']);
+        $this->driver = GMail::createByParams($this->config['client_id'], $this->config['client_secret'], $this->config['refresh_token']);
+        $this->driver->setBaseFilter($this->config['base_filter']);
     }
 
     /**
@@ -29,28 +25,28 @@ class GMailAPI extends Module implements MailInterface
      * @param \Codeception\Step $step
      */
     public function _beforeStep(\Codeception\Step $step) {
-        $this->remoteMail->refreshToken();
+        $this->driver->refreshToken();
     }
 
     /**
      * @return \Google_Client
      */
     public function _getClient() {
-        return $this->remoteMail->getClient();
+        return $this->driver->getClient();
     }
 
     /**
      * @return \Google_Service_Gmail
      */
     public function _getService() {
-        return $this->remoteMail->getService();
+        return $this->driver->getService();
     }
 
     /**
-     * @return GMailRemote
+     * @return GMail
      */
-    public function _getRemoteMail() {
-        return $this->remoteMail;
+    public function _getDriver() {
+        return $this->driver;
     }
 
     /**
@@ -58,11 +54,12 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for a string in the most recent email
      *
-     * @param $expected string
-     * @param $filters array|string
+     * @param string        $expected
+     * @param array|string  $filters
+     * @param string        $message
      * @return void
      **/
-    public function seeInLastEmail($expected, $filters = array()) {
+    public function seeInLastEmail($expected, $filters = array(), $message = '') {
         $email = $this->getLastEmail($filters);
         $this->seeInEmail($email, $expected);
     }
@@ -73,11 +70,12 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for the absence of a string in the most recent email
      *
-     * @param $unexpected string
-     * @param $filters array|string
+     * @param string        $unexpected
+     * @param array|string  $filters
+     * @param string        $message
      * @return void
      **/
-    public function dontSeeInLastEmail($unexpected, $filters = array()) {
+    public function dontSeeInLastEmail($unexpected, $filters = array(), $message = '') {
         $email = $this->getLastEmail($filters);
         $this->dontSeeInEmail($email, $unexpected);
     }
@@ -88,13 +86,14 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for a string in the most recent email subject
      *
-     * @param $expected string
-     * @param $filters array|string
+     * @param string        $expected
+     * @param array|string  $filters
+     * @param string        $message
      * @return void
      **/
-    public function seeInLastEmailSubject($expected, $filters = array()) {
+    public function seeInLastEmailSubject($expected, $filters = array(), $message = 'Email Subject dose not contains') {
         $email = $this->getLastEmail($filters);
-        $this->seeInEmailSubject($email, $expected);
+        $this->seeInEmailHeader($email, $expected, 'Subject', $message);
     }
 
 
@@ -103,28 +102,33 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for the absence of a string in the most recent email subject
      *
-     * @param $expected string
-     * @param $filters array|string
+     * @param string        $unexpected
+     * @param array|string  $filters
+     * @param string        $message
      * @return void
      **/
-    public function dontSeeInLastEmailSubject($expected, $filters = array()) {
+    public function dontSeeInLastEmailSubject($unexpected, $filters = array(), $message = 'Email Subject contain') {
         $email = $this->getLastEmail($filters);
-        $this->dontSeeInEmailSubject($email, $expected);
+        $this->dontSeeInEmailHeader($email, $unexpected, 'Subject', $message);
     }
 
 
     /**
      * Grab From Last Email
      *
-     * Look for a regex in the email source and return it
+     * Look for a regex in the email source and return the first occurrence
      *
-     * @param $regex string
-     * @param $filters array|string
+     * @param string        $regex
+     * @param array|string  $filters
+     * @param string        $message
      * @return string
      **/
-    public function grabFromLastEmail($regex, $filters = array()) {
+    public function grabFromLastEmail($regex, $filters = array(), $message = 'No match fount in email') {
         $matches = $this->grabMatchesFromLastEmail($regex, $filters);
         //TODO:: try to print the grab text to console. @see writeln()
+        if(empty($matches)) {
+            $this->fail($message);
+        }
         return $matches[0];
     }
 
@@ -134,32 +138,90 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for a regex in the email source and return it's matches
      *
-     * @param $regex string
-     * @param $filters array|string
+     * @param string $regex
+     * @param array|string $filters
+     * @param string $message
      * @return array
      **/
-    public function grabMatchesFromLastEmail($regex, $filters = array()) {
+    public function grabMatchesFromLastEmail($regex, $filters = array(), $message = 'No matches found in email') {
         $email = $this->getLastEmail($filters);
         $matches = $this->grabMatchesFromEmail($email, $regex);
-
         //TODO:: try to print the grab text to console. @see writeln()
+        if(empty($matches)) {
+            $this->fail($message);
+        }
         return $matches;
     }
 
     /**
      * Waits for an email to be received or $timeout seconds to pass.
      *
-     * @param $filters array|string
-     * @param $timeout int
-     * @param $message string
+     * @param array|string  $filters
+     * @param int           $timeout
+     * @param string        $message
      * @return void
      */
-    public function waitForEmail($filters = array(), $timeout = 10, $message = '') {
+    public function waitForEmail($filters = array(), $timeout = 10, $message = 'No email received') {
         try{
-            $this->remoteMail->wait($timeout)->until(GMailExpectedCondition::emails($filters));
+            $this->driver->wait($timeout)->until(GMail::emails($filters));
         } catch (TimeOut $e) {
             $this->fail($message);
         }
+    }
+
+    /**
+     * Test email count equals expected value
+     *
+     * @param int $expected
+     * @param array|string $filters
+     * @param string $message
+     */
+    public function seeEmailCountEquals($expected, $filters = array(), $message = '') {
+        $this->assertEquals($expected, $this->driver->getEmailCount($filters), $message);
+    }
+
+    /**
+     * Test email count greater then expected value
+     *
+     * @param int $expected
+     * @param array|string $filters
+     * @param string $message
+     */
+    public function seeEmailCountGreaterThan($expected, $filters = array(), $message = '') {
+        $this->assertGreaterThan($expected, $this->driver->getEmailCount($filters), $message);
+    }
+
+    /**
+     * Test email count greater then or equals expected value
+     *
+     * @param int $expected
+     * @param array|string $filters
+     * @param string $message
+     */
+    public function seeEmailCountGreaterThanOrEqual($expected, $filters = array(), $message = '') {
+        $this->assertGreaterThanOrEqual($expected, $this->driver->getEmailCount($filters), $message);
+    }
+
+    /**
+     * Test email count less then expected value
+     *
+     * @param int $expected
+     * @param array|string $filters
+     * @param string $message
+     */
+    public function seeEmailCountLessThan($expected, $filters = array(), $message = '') {
+        $this->assertLessThan($expected, $this->driver->getEmailCount($filters), $message);
+    }
+
+    /**
+     * Test email count less then or equals expected value
+     *
+     * @param int $expected
+     * @param array|string $filters
+     * @param string $message
+     */
+    public function seeEmailCountLessThanOrEqual($expected, $filters = array(), $message = '') {
+        $this->assertLessThanOrEqual($expected, $this->driver->getEmailCount($filters), $message);
     }
 
 
@@ -168,12 +230,13 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for a string in an email
      *
-     * @param $email /Google_Service_Gmail_Message
-     * @param $expected string
+     * @param  /Google_Service_Gmail_Message $email
+     * @param  string                        $expected
+     * @param  string                        $message
      * @return void
      **/
-    protected function seeInEmail($email, $expected) {
-        $this->assertContains($expected, $this->remoteMail->getEmailContent($email), "Email Contains");
+    protected function seeInEmail($email, $expected, $message = '') {
+        $this->assertContains($expected, $this->driver->getEmailContent($email), $message);
     }
 
     /**
@@ -181,12 +244,13 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for the absence of a string in an email
      *
-     * @param $email /Google_Service_Gmail_Message
-     * @param $unexpected string
+     * @param  /Google_Service_Gmail_Message $email
+     * @param  string                        $unexpected
+     * @param  string                        $message
      * @return void
      **/
-    protected function dontSeeInEmail($email, $unexpected) {
-        $this->assertNotContains($unexpected, $this->remoteMail->getEmailContent($email), "Email Does Not Contain");
+    protected function dontSeeInEmail($email, $unexpected, $message = '') {
+        $this->assertNotContains($unexpected, $this->driver->getEmailContent($email), $message);
     }
 
     /**
@@ -194,13 +258,14 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for a string in an email subject
      *
-     *
-     * @param $email /Google_Service_Gmail_Message
-     * @param $expected string
+     * @param  /Google_Service_Gmail_Message $email
+     * @param  string                        $expected
+     * @param  string                        $headerName
+     * @param  string                        $message
      * @return void
      **/
-    protected function seeInEmailSubject($email, $expected) {
-        $this->assertContains($expected, $this->remoteMail->getEmailHeader($email, 'Subject'), "Email Subject Contains");
+    protected function seeInEmailHeader($email, $expected, $headerName = 'Subject', $message = '') {
+        $this->assertContains($expected, $this->driver->getEmailHeader($email, $headerName), $message);
     }
 
     /**
@@ -208,12 +273,14 @@ class GMailAPI extends Module implements MailInterface
      *
      * Look for the absence of a string in an email subject
      *
-     * @param $email /Google_Service_Gmail_Message
-     * @param $unexpected string
+     * @param  /Google_Service_Gmail_Message $email
+     * @param  string                        $unexpected
+     * @param  string                        $headerName
+     * @param  string                        $message
      * @return void
      **/
-    protected function dontSeeInEmailSubject($email, $unexpected) {
-        $this->assertNotContains($unexpected, $this->remoteMail->getEmailHeader($email, 'Subject'), "Email Subject Does Not Contain");
+    protected function dontSeeInEmailHeader($email, $unexpected, $headerName = 'Subject', $message = '') {
+        $this->assertNotContains($unexpected, $this->driver->getEmailHeader($email, $headerName), $message);
     }
 
     /**
@@ -221,13 +288,13 @@ class GMailAPI extends Module implements MailInterface
      *
      * Return the matches of a regex against the raw email
      *
-     * @param $email \Google_Service_Gmail_Message
-     * @param $regex string
+     * @param \Google_Service_Gmail_Message $email
+     * @param string                        $regex
      * @return array
      **/
     protected function grabMatchesFromEmail($email, $regex)
     {
-        preg_match($regex, $this->remoteMail->getEmailContent($email), $matches);
+        preg_match($regex, $this->driver->getEmailContent($email), $matches);
         $this->assertNotEmpty($matches, "No matches found for $regex");
         return $matches;
     }
@@ -237,12 +304,12 @@ class GMailAPI extends Module implements MailInterface
      *
      * Get the most recent email
      *
-     * @param $filters array|string
-     * @param $message string
+     * @param array|string  $filters
+     * @param string        $message
      * @return \Google_Service_Gmail_Message
      **/
-    protected function getLastEmail($filters = array(), $message = "No messages received") {
-        $lastEmail = $this->remoteMail->getLastEmail($filters);
+    protected function getLastEmail($filters = array(), $message = "No email received") {
+        $lastEmail = $this->driver->getLastEmail($filters);
 
         if (is_null($lastEmail)) {
             $this->fail($message);

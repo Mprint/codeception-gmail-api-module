@@ -1,7 +1,7 @@
 <?php
-namespace Codeception\Util;
+namespace Codeception\Util\Driver;
 
-class GMailRemote {
+class GMail {
 
     /**
      * Constructor for current class
@@ -9,14 +9,14 @@ class GMailRemote {
      * @param $clientId
      * @param $clientSecret
      * @param $refreshToken
-     * @return GMailRemote
+     * @return GMail
      */
     public static function createByParams($clientId, $clientSecret, $refreshToken) {
 
         $client = new \Google_Client();
         $client->setClientId($clientId);
         $client->setClientSecret($clientSecret);
-        $client->addScope('https://mail.google.com/');
+        $client->addScope(\Google_Service_Gmail::MAIL_GOOGLE_COM);
         $client->refreshToken($refreshToken);
 
         return self::createByClient($client);
@@ -26,7 +26,7 @@ class GMailRemote {
      * Constructor for current class
      *
      * @param \Google_Client $client
-     * @return GMailRemote
+     * @return GMail
      */
     public static function createByClient(\Google_Client $client) {
         $service = new \Google_Service_Gmail($client);
@@ -38,10 +38,10 @@ class GMailRemote {
      * Constructor for current class
      *
      * @param \Google_Service_Gmail $service
-     * @return GMailRemote
+     * @return GMail
      */
     public static function createByService(\Google_Service_Gmail $service) {
-        return new GMailRemote($service);
+        return new GMail($service);
     }
 
     /** @var \Google_Service_Gmail */
@@ -101,6 +101,17 @@ class GMailRemote {
         /** @var /Google_Service_Gmail_ListMessagesResponse $list */
         $list = $this->service->users_messages->listUsersMessages('me', $params);
         return $list->getMessages();
+    }
+
+    public function getEmailCount($filters) {
+        $params = array(
+            'maxResults' => 1,
+            'q' => $this->parseFilters($filters)
+        );
+
+        /** @var /Google_Service_Gmail_ListMessagesResponse $list */
+        $list = $this->service->users_messages->listUsersMessages('me', $params);
+        return $list->getResultSizeEstimate();
     }
 
     /**
