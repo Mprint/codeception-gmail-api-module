@@ -110,7 +110,7 @@ class GMailRemote {
     public function getLastEmail($filters) {
         $emails = $this->getEmails($filters, 1);
 
-        if (empty($messages)) {
+        if (empty($emails)) {
             return null;
         }
 

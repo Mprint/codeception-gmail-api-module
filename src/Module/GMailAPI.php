@@ -1,5 +1,6 @@
 <?php
 namespace Codeception\Module;
+use Codeception\Exception\TimeOut;
 use Codeception\Module;
 use Codeception\Util\GMailExpectedCondition;
 use Codeception\Util\MailInterface;
@@ -62,7 +63,7 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     public function seeInLastEmail($expected, $filters = array()) {
-        $email = $this->getLastMessage($filters);
+        $email = $this->getLastEmail($filters);
         $this->seeInEmail($email, $expected);
     }
 
@@ -77,38 +78,7 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     public function dontSeeInLastEmail($unexpected, $filters = array()) {
-        $email = $this->getLastMessage($filters);
-        $this->dontSeeInEmail($email, $unexpected);
-    }
-
-
-    /**
-     * See In Last Email From
-     *
-     * Look for a string in the most recent email sent to $address
-     *
-     * @param $address string
-     * @param $expected string
-     * @return void
-     **/
-    public function seeInLastEmailFrom($address, $expected) {
-        $email = $this->getLastMessageFrom($address);
-        $this->seeInEmail($email, $expected);
-
-    }
-
-
-    /**
-     * Don't See In Last Email From
-     *
-     * Look for the absence of a string in the most recent email sent to $address
-     *
-     * @param $address string
-     * @param $unexpected string
-     * @return void
-     **/
-    public function dontSeeInLastEmailFrom($address, $unexpected) {
-        $email = $this->getLastMessageFrom($address);
+        $email = $this->getLastEmail($filters);
         $this->dontSeeInEmail($email, $unexpected);
     }
 
@@ -123,7 +93,7 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     public function seeInLastEmailSubject($expected, $filters = array()) {
-        $email = $this->getLastMessage($filters);
+        $email = $this->getLastEmail($filters);
         $this->seeInEmailSubject($email, $expected);
     }
 
@@ -138,39 +108,8 @@ class GMailAPI extends Module implements MailInterface
      * @return void
      **/
     public function dontSeeInLastEmailSubject($expected, $filters = array()) {
-        $email = $this->getLastMessage($filters);
+        $email = $this->getLastEmail($filters);
         $this->dontSeeInEmailSubject($email, $expected);
-    }
-
-
-    /**
-     * See In Last Email Subject From
-     *
-     * Look for a string in the most recent email subject sent to $address
-     *
-     * @param $address string
-     * @param $expected string
-     * @return void
-     **/
-    public function seeInLastEmailSubjectFrom($address, $expected) {
-        $email = $this->getLastMessageFrom($address);
-        $this->seeInEmailSubject($email, $expected);
-
-    }
-
-
-    /**
-     * Don't See In Last Email Subject From
-     *
-     * Look for the absence of a string in the most recent email subject sent to $address
-     *
-     * @param $address string
-     * @param $unexpected string
-     * @return void
-     **/
-    public function dontSeeInLastEmailSubjectFrom($address, $unexpected) {
-        $email = $this->getLastMessageFrom($address);
-        $this->dontSeeInEmailSubject($email, $unexpected);
     }
 
 
@@ -180,27 +119,12 @@ class GMailAPI extends Module implements MailInterface
      * Look for a regex in the email source and return it
      *
      * @param $regex string
-     * @param $filters array
+     * @param $filters array|string
      * @return string
      **/
     public function grabFromLastEmail($regex, $filters = array()) {
         $matches = $this->grabMatchesFromLastEmail($regex, $filters);
-        return $matches[0];
-    }
-
-
-    /**
-     * Grab From Last Email From
-     *
-     * Look for a regex in most recent email sent to $address email body and
-     * return it
-     *
-     * @param $address string
-     * @param $regex string
-     * @return string
-     **/
-    public function grabFromLastEmailFrom($address, $regex) {
-        $matches = $this->grabMatchesFromLastEmailFrom($address, $regex);
+        //TODO:: try to print the grab text to console. @see writeln()
         return $matches[0];
     }
 
@@ -211,46 +135,31 @@ class GMailAPI extends Module implements MailInterface
      * Look for a regex in the email source and return it's matches
      *
      * @param $regex string
-     * @param $filters array
+     * @param $filters array|string
      * @return array
      **/
     public function grabMatchesFromLastEmail($regex, $filters = array()) {
-        $email = $this->getLastMessage($filters);
+        $email = $this->getLastEmail($filters);
         $matches = $this->grabMatchesFromEmail($email, $regex);
+
+        //TODO:: try to print the grab text to console. @see writeln()
         return $matches;
     }
 
-
     /**
-     * Grab Matches From Last Email From
+     * Waits for an email to be received or $timeout seconds to pass.
      *
-     * Look for a regex in most recent email sent to $address email source and
-     * return it's matches
-     *
-     * @param $address string
-     * @param $regex string
-     * @return array
-     **/
-    public function grabMatchesFromLastEmailFrom($address, $regex) {
-        $email = $this->getLastMessageFrom($address);
-        $matches = $this->grabMatchesFromEmail($email, $regex);
-        return $matches;
-    }
-
-
-    /**
-     * Waits for email from $address to be received or for $timeout seconds to pass.
-     *
-     * @param $address
-     * @param int $timeout
-     * @throws \Codeception\Exception\TimeOut
+     * @param $filters array|string
+     * @param $timeout int
+     * @param $message string
+     * @return void
      */
-    public function waitForEmailFrom($address, $timeout = 10) {
-        $this->remoteMail->wait($timeout)->until(GMailExpectedCondition::emailFrom($address));
-    }
-
-    public function waitForEmail($filters = array(), $timeout = 10) {
-        $this->remoteMail->wait($timeout)->until(GMailExpectedCondition::emails($filters));
+    public function waitForEmail($filters = array(), $timeout = 10, $message = '') {
+        try{
+            $this->remoteMail->wait($timeout)->until(GMailExpectedCondition::emails($filters));
+        } catch (TimeOut $e) {
+            $this->fail($message);
+        }
     }
 
 
@@ -323,23 +232,6 @@ class GMailAPI extends Module implements MailInterface
         return $matches;
     }
 
-    /********************
-     *  Helper function
-     ********************/
-
-
-    /**
-     * Last Message From
-     *
-     * Get the most recent email sent to $address
-     *
-     * @param $address string
-     * @return \Google_Service_Gmail_Message
-     **/
-    protected function getLastMessageFrom($address) {
-        return $this->getLastMessage(array('from' => $address), "No messages sent to {$address}");
-    }
-
     /**
      * Last Message
      *
@@ -349,7 +241,7 @@ class GMailAPI extends Module implements MailInterface
      * @param $message string
      * @return \Google_Service_Gmail_Message
      **/
-    protected function getLastMessage($filters = array(), $message = "No messages received") {
+    protected function getLastEmail($filters = array(), $message = "No messages received") {
         $lastEmail = $this->remoteMail->getLastEmail($filters);
 
         if (is_null($lastEmail)) {
