@@ -104,6 +104,23 @@ class GMailRemote {
     }
 
     /**
+     * @param $filters
+     * @return \Google_Service_Gmail_Message|null
+     */
+    public function getLastEmail($filters) {
+        $emails = $this->getEmails($filters, 1);
+
+        if (empty($messages)) {
+            return null;
+        }
+
+        /** @var /Google_Service_Gmail_Message $last */
+        $last = array_shift($emails);
+
+        return $this->getEmailById($last->id);
+    }
+
+    /**
      * Email from ID
      *
      * Given a GMail id, returns the email's object

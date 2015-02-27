@@ -20,6 +20,13 @@ class GMailAPI extends Module implements MailInterface
         $this->remoteMail->setBaseFilter($this->config['base_filter']);
     }
 
+    /**
+     * Ensure that the active token has not expired
+     *
+     * TODO: take an other look on the implementation of wait*()
+     *
+     * @param \Codeception\Step $step
+     */
     public function _beforeStep(\Codeception\Step $step) {
         $this->remoteMail->refreshToken();
     }
@@ -51,7 +58,7 @@ class GMailAPI extends Module implements MailInterface
      * Look for a string in the most recent email
      *
      * @param $expected string
-     * @param $filters array
+     * @param $filters array|string
      * @return void
      **/
     public function seeInLastEmail($expected, $filters = array()) {
@@ -66,7 +73,7 @@ class GMailAPI extends Module implements MailInterface
      * Look for the absence of a string in the most recent email
      *
      * @param $unexpected string
-     * @param $filters array
+     * @param $filters array|string
      * @return void
      **/
     public function dontSeeInLastEmail($unexpected, $filters = array()) {
@@ -112,10 +119,11 @@ class GMailAPI extends Module implements MailInterface
      * Look for a string in the most recent email subject
      *
      * @param $expected string
+     * @param $filters array|string
      * @return void
      **/
-    public function seeInLastEmailSubject($expected) {
-        $email = $this->getLastMessage();
+    public function seeInLastEmailSubject($expected, $filters = array()) {
+        $email = $this->getLastMessage($filters);
         $this->seeInEmailSubject($email, $expected);
     }
 
@@ -126,10 +134,11 @@ class GMailAPI extends Module implements MailInterface
      * Look for the absence of a string in the most recent email subject
      *
      * @param $expected string
+     * @param $filters array|string
      * @return void
      **/
-    public function dontSeeInLastEmailSubject($expected) {
-        $email = $this->getLastMessage();
+    public function dontSeeInLastEmailSubject($expected, $filters = array()) {
+        $email = $this->getLastMessage($filters);
         $this->dontSeeInEmailSubject($email, $expected);
     }
 
@@ -328,15 +337,7 @@ class GMailAPI extends Module implements MailInterface
      * @return \Google_Service_Gmail_Message
      **/
     protected function getLastMessageFrom($address) {
-        $messages = $this->remoteMail->getEmails(array('from' => $address), 1);
-        if (empty($messages)) {
-            $this->fail("No messages sent to {$address}");
-        }
-
-        /** @var /Google_Service_Gmail_Message $last */
-        $last = array_shift($messages);
-
-        return $this->remoteMail->getEmailById($last->id);
+        return $this->getLastMessage(array('from' => $address), "No messages sent to {$address}");
     }
 
     /**
@@ -344,19 +345,17 @@ class GMailAPI extends Module implements MailInterface
      *
      * Get the most recent email
      *
-     * @param $filters
+     * @param $filters array|string
+     * @param $message string
      * @return \Google_Service_Gmail_Message
      **/
-    protected function getLastMessage($filters = array()) {
-        $messages = $this->remoteMail->getEmails($filters, 1);
+    protected function getLastMessage($filters = array(), $message = "No messages received") {
+        $lastEmail = $this->remoteMail->getLastEmail($filters);
 
-        if (empty($messages)) {
-            $this->fail("No messages received");
+        if (is_null($lastEmail)) {
+            $this->fail($message);
         }
 
-        /** @var /Google_Service_Gmail_Message $last */
-        $last = array_shift($messages);
-
-        return $this->remoteMail->getEmailById($last->id);
+        return $lastEmail;
     }
 }
