@@ -27,15 +27,23 @@ class GMailExpectedCondition implements ExpectedConditionInterface{
      * @return GMailExpectedCondition
      */
     public static function emailFrom($address) {
-        return new GMailExpectedCondition(
-            function (GMailRemote $remote) use ($address) {
-                return $remote->getEmails(array('from' => $address), 1);
-            }
-        );
+        return self::emails(array('from' => $address), 1);
+    }
+
+    /**
+     * An expectation for an email where the subject contains $subject
+     *
+     * @param $subject string
+     * @return GMailExpectedCondition
+     */
+    public static function emailWithSubject($subject) {
+        return self::emails(array('subject' => $subject), 1);
     }
 
     /**
      * An expectation for checking that an email from a email address is present in inbox
+     *
+     * For a complete list of filters supported by google @see https://support.google.com/mail/answer/7190?hl=en
      *
      * @param $filters array
      * @param $limit int

@@ -122,9 +122,9 @@ class GMailRemote {
      * @param $type string 'html' | 'plain'
      * @return string
      */
-    public function getEmailContent($email, $type = 'plain') {
+    public function getEmailContent($email, $type = 'html') {
         if(!in_array($type, array('html', 'plain'))) {
-            $type = 'plain';
+            $type = 'html';
         }
 
         foreach($email->getPayload()->getParts() as $emailPart) {
