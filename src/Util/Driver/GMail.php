@@ -1,6 +1,8 @@
 <?php
 namespace Codeception\Util\Driver;
 
+use Codeception\Lib\Wait;
+
 class GMail {
 
     /**
@@ -176,19 +178,19 @@ class GMail {
     }
 
     /**
-     * Construct a new RemoteWait by the current RemoteMail instance.
+     * Construct a new Wait by the current \Codeception\Util\Driver\GMail instance.
      * Sample usage:
      *
-     *   $remoteMail->wait(20, 1000)->until(
+     *   $driver->wait(20, 1000)->until(
      *     GMailExpectedCondition::emailFrom('test@gmail.com')
      *   );
      *
      * @param $timeout_in_second int
      * @param $interval_in_millisecond int
-     * @return RemoteWait
+     * @return Wait
      */
     public function wait($timeout_in_second = 30, $interval_in_millisecond = 1000) {
-        return new RemoteWait(
+        return new Wait(
             $this, $timeout_in_second, $interval_in_millisecond
         );
     }
