@@ -18,27 +18,16 @@ class GMailAPI extends Module implements Mail
     }
 
     /**
-     * Ensure that the active token has not expired
-     *
-     * TODO: take an other look on the implementation of wait*()
-     *
-     * @param \Codeception\Step $step
-     */
-    public function _beforeStep(\Codeception\Step $step) {
-        $this->driver->refreshToken();
-    }
-
-    /**
      * @return \Google_Client
      */
-    public function _getClient() {
+    public function _getGMailClient() {
         return $this->driver->getClient();
     }
 
     /**
      * @return \Google_Service_Gmail
      */
-    public function _getService() {
+    public function _getGMailService() {
         return $this->driver->getService();
     }
 

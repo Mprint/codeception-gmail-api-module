@@ -5,16 +5,20 @@ use Codeception\Lib\Wait;
 
 class GMail {
 
+    /** @var \Google_Service_Gmail */
+    public $service;
+
+    protected $baseFilter = '';
+
     /**
      * Constructor for current class
      *
-     * @param $clientId
-     * @param $clientSecret
-     * @param $refreshToken
+     * @param string $clientId
+     * @param string $clientSecret
+     * @param string $refreshToken
      * @return GMail
      */
     public static function createByParams($clientId, $clientSecret, $refreshToken) {
-
         $client = new \Google_Client();
         $client->setClientId($clientId);
         $client->setClientSecret($clientSecret);
@@ -46,11 +50,6 @@ class GMail {
         return new GMail($service);
     }
 
-    /** @var \Google_Service_Gmail */
-    public $service;
-
-    protected $baseFilter = '';
-
     public function __construct(\Google_Service_Gmail $service) {
         $this->service = $service;
     }
@@ -69,18 +68,26 @@ class GMail {
         return $this->service;
     }
 
+    /**
+     * @return string
+     */
     public function getBaseFilter() {
         return $this->baseFilter;
     }
 
+    /**
+     * @param string $baseFilter
+     */
     public function setBaseFilter($baseFilter) {
         $this->baseFilter = $baseFilter;
     }
 
     /**
+     * Ensure that the current token has not expired
+     *
      * @return void
      */
-    public function refreshToken() {
+    public function ensureActiveToken() {
         if($this->service->getClient()->isAccessTokenExpired()) {
             $this->service->getClient()->refreshToken($this->service->getClient()->getRefreshToken());
         }
@@ -91,8 +98,8 @@ class GMail {
      *
      * Get an array of all the emails objects
      *
-     * @param $filters array
-     * @param $limit int
+     * @param array $filters
+     * @param int   $limit
      * @return array
      **/
     public function getEmails($filters, $limit = 100) {
@@ -100,24 +107,33 @@ class GMail {
             'maxResults' => $limit,
             'q' => $this->parseFilters($filters)
         );
+
+        $this->ensureActiveToken();
+
         /** @var /Google_Service_Gmail_ListMessagesResponse $list */
         $list = $this->service->users_messages->listUsersMessages('me', $params);
         return $list->getMessages();
     }
 
+    /**
+     * @param array|string $filters
+     * @return int
+     */
     public function getEmailCount($filters) {
         $params = array(
             'maxResults' => 1,
             'q' => $this->parseFilters($filters)
         );
 
+        $this->ensureActiveToken();
+
         /** @var /Google_Service_Gmail_ListMessagesResponse $list */
         $list = $this->service->users_messages->listUsersMessages('me', $params);
-        return $list->getResultSizeEstimate();
+        return (int) $list->getResultSizeEstimate();
     }
 
     /**
-     * @param $filters
+     * @param array|string $filters
      * @return \Google_Service_Gmail_Message|null
      */
     public function getLastEmail($filters) {
@@ -138,18 +154,19 @@ class GMail {
      *
      * Given a GMail id, returns the email's object
      *
-     * @param $id string
+     * @param string $id
      * @return \Google_Service_Gmail_Message
      **/
     public function getEmailById($id) {
+        $this->ensureActiveToken();
         return $this->service->users_messages->get('me', $id, array('format' => 'full'));
     }
 
     /**
      * Email Body
      *
-     * @param $email /Google_Service_Gmail_Message
-     * @param $type string 'html' | 'plain'
+     * @param /Google_Service_Gmail_Message $email
+     * @param string {'html'|'plain'}       $type
      * @return string
      */
     public function getEmailContent($email, $type = 'html') {
@@ -169,8 +186,8 @@ class GMail {
      *
      * Return Email header if exist (subject | from | to ...)
      *
-     * @param $email /Google_Service_Gmail_Message
-     * @param $headerName string
+     * @param /Google_Service_Gmail_Message $email
+     * @param string                        $headerName
      * @return string
      */
     public function getEmailHeader($email, $headerName) {
@@ -185,8 +202,8 @@ class GMail {
      *     GMailExpectedCondition::emailFrom('test@gmail.com')
      *   );
      *
-     * @param $timeout_in_second int
-     * @param $interval_in_millisecond int
+     * @param int   $timeout_in_second
+     * @param int   $interval_in_millisecond
      * @return Wait
      */
     public function wait($timeout_in_second = 30, $interval_in_millisecond = 1000) {
@@ -196,6 +213,11 @@ class GMail {
     }
 
 
+
+    /**
+     * @param array|string $filters
+     * @return string
+     */
     protected function parseFilters($filters) {
         if(is_array($filters)) {
             $query = array();
@@ -212,8 +234,8 @@ class GMail {
     }
 
     /**
-     * @param $headers array
-     * @param $headerName string
+     * @param array  $headers
+     * @param string $headerName
      * @return string
      */
     protected function getHeaderValue($headers, $headerName) {
@@ -227,7 +249,7 @@ class GMail {
     /**
      * Custom base64 encode function required by GMail API
      *
-     * @param $data
+     * @param string    $data
      * @return string
      */
     protected function base64url_encode($data) {
@@ -237,7 +259,7 @@ class GMail {
     /**
      * Custom base64 decode function required by GMail API
      *
-     * @param $data
+     * @param string    $data
      * @return string
      */
     protected function base64url_decode($data) {
