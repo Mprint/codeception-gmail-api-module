@@ -1,5 +1,8 @@
 <?php
-namespace Codeception\Util;
+namespace Codeception\Lib\Expectation;
+
+use Codeception\Lib\Interfaces\ExpectedCondition;
+use Codeception\Util\Driver\GMail as GMailDriver;
 
 class GMail implements ExpectedCondition{
 
@@ -51,8 +54,8 @@ class GMail implements ExpectedCondition{
      */
     public static function emails($filters, $limit = 100) {
         return new GMail(
-            function (\Codeception\Util\Driver\GMail $remote) use ($filters, $limit) {
-                return $remote->getEmails($filters, $limit);
+            function (GMailDriver $driver) use ($filters, $limit) {
+                return $driver->getEmails($filters, $limit);
             }
         );
     }

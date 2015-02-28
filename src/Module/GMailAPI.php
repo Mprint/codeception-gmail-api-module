@@ -1,9 +1,9 @@
 <?php
 namespace Codeception\Module;
-use Codeception\Exception\TimeOut;
-use Codeception\Lib\Interfaces\Mail;
 use Codeception\Module;
+use Codeception\Lib\Interfaces\Mail;
 use Codeception\Util\Driver\GMail;
+use Codeception\Exception\TimeOut;
 
 class GMailAPI extends Module implements Mail
 {
@@ -163,7 +163,7 @@ class GMailAPI extends Module implements Mail
      */
     public function waitForEmail($filters = array(), $timeout = 10, $message = 'No email received') {
         try{
-            $this->driver->wait($timeout)->until(GMail::emails($filters));
+            $this->driver->wait($timeout)->until(\Codeception\Lib\Expectation\GMail::emails($filters));
         } catch (TimeOut $e) {
             $this->fail($message);
         }
